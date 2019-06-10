@@ -1,0 +1,75 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/root.json",
+  "type": "object",
+  "title": "The Root Schema",
+  "required": [
+    "Authentication",
+    "Project"
+  ],
+  "properties": {
+    "Authentication": {
+      "$id": "#/properties/Authentication",
+      "type": "object",
+      "title": "The Authentication Schema",
+      "required": [
+        "Username",
+        "PersonalAccessToken"
+      ],
+      "properties": {
+        "Username": {
+          "$id": "#/properties/Authentication/properties/Username",
+          "type": "string",
+          "title": "The Username Schema",
+          "default": "",
+          "examples": [
+            "john.doe@gmail.com"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "PersonalAccessToken": {
+          "$id": "#/properties/Authentication/properties/PersonalAccessToken",
+          "type": "string",
+          "title": "The Personal Access Token Schema",
+          "default": "",
+          "examples": [
+            "adssads"
+          ],
+          "pattern": "^(.*)$"
+        }
+      }
+    },
+    "Project": {
+      "$id": "#/properties/Project",
+      "type": "object",
+      "title": "The Project Schema",
+      "required": [
+        "Organization",
+        "Name"
+      ],
+      "properties": {
+        "Organization": {
+          "$id": "#/properties/Project/properties/Organization",
+          "type": "string",
+          "title": "The Organization Schema",
+          "default": "",
+          "examples": [
+            "Devops"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "Name": {
+          "$id": "#/properties/Project/properties/Name",
+          "type": "string",
+          "title": "The Name Schema",
+          "default": "",
+          "examples": [
+            "Python"
+          ],
+          "pattern": "^(.*)$"
+        }
+      }
+    }
+  }
+}
