@@ -1,26 +1,32 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+from __future__ import print_function, unicode_literals
+
 import atexit
 import os
 import pprint
 import re
 import sys
 import webbrowser
-import colorama
-import requests
-
 from datetime import date
 from itertools import groupby, islice
-from pick import pick
-from devops.configuration.loader import load_configuration
-import CustomRepository
 
-configuration = load_configuration('config.json')
+import colorama
+import requests
+from clint.textui import colored
+
+import CustomRepository
+from devops.configuration.loader import Loader
+
+configuration = Loader.load_configuration('config.json')
 AUTHENTICATION = configuration.authentication.tuple
 ORGANIZATION = configuration.project.organization
 PROJECT = configuration.project.name
 ENDPOINT = f'https://dev.azure.com/{ORGANIZATION}/{PROJECT}/_apis'
 GIT_ENDPOINT = f'dev.azure.com/{ORGANIZATION}/{PROJECT}/_git/{PROJECT}'
 REPOSITORY_ID = [x['id'] for x in requests.get(f'{ENDPOINT}/git/repositories?api-version=5.0',
-                                               auth=AUTHENTICATION).json()['value'] if x['name'] == PROJECT][0]
+                                               auth=AUTHENTICATION).json()['value']
+                 if x['name'] == PROJECT][0]
 KEY_FUNC = lambda f: f['fields']['System.WorkItemType']
 
 sourceBranch = sourcePulled = targetBranch = targetPulled = None
@@ -35,7 +41,7 @@ def create_pull_request(source_branch: str, target_branch: str, work_items: list
     payload = {'sourceRefName': f'refs/heads/{source_branch}',
                'targetRefName': f'refs/heads/{target_branch}',
                'title': title,
-               'workItemRefs': map(lambda work_item: {'id': work_item}, work_items),
+               'workItemRefs': [{'id': work_item} for work_item in work_items],
                'description': text}
 
     print('Sending pull request: ', end='')
@@ -43,13 +49,13 @@ def create_pull_request(source_branch: str, target_branch: str, work_items: list
                              auth=AUTHENTICATION)
     res = response.json()
     if not response.ok:
-        print(f'{colorama.Fore.RED}Failed{colorama.Fore.RESET} [StatusCode: {response.status_code}]')
+        print(f'{colored.red("failed")} [StatusCode: {response.status_code}]')
         print(f'Error message: {res["message"]}')
     else:
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
         print(f'Opening pull request in the browser: ', end='')
         webbrowser.open(f'https://dev.azure.com/{ORGANIZATION}/_git/{PROJECT}/pullrequest/{res["pullRequestId"]}')
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
 
 
 def create_message(work_items: list, display: bool = False):
@@ -57,15 +63,14 @@ def create_message(work_items: list, display: bool = False):
     print(msg)
     d = {}
     for k, v in groupby(sorted(work_items, key=KEY_FUNC), KEY_FUNC):
-        v = list(map(lambda x: x['id'], list(v)))
         if k in ['User Story', 'Bug', 'Task', 'Change request', 'Defect', 'Issue']:
-            d[k] = v
-            print(f'\t{colorama.Fore.CYAN}Nb of {k}: {len(v)}{colorama.Fore.RESET}')
+            d[k] = [x['id'] for x in v]
+            print(f'\t{colored.cyan("nb of {k}: {len(d[k])}")}')
         else:
-            print(f'\t{colorama.Fore.YELLOW}Unhandled key: "{k}"{colorama.Fore.RESET}')
+            print(f'\t{colored.yellow("unhandled key: {k}")}')
 
     print(f'{colorama.Cursor.UP(len(d.keys()) + 1)}{colorama.Cursor.FORWARD(len(msg))}', end='')
-    print(f'{colorama.Fore.GREEN}Done.{colorama.Fore.RESET}')
+    print(colored.green('Done.'))
 
     print(f'{colorama.Cursor.DOWN(len(d.keys()))}{colorama.Cursor.BACK(len(msg))}', end='')
     print(f'Generating message', end='')
@@ -84,7 +89,7 @@ def create_message(work_items: list, display: bool = False):
     print('.', end='')
     text = re.sub(r"\n\n---\n\n$", '', text)
     print('. ', end='')
-    print(f'{colorama.Fore.GREEN}Done.{colorama.Fore.RESET}')
+    print(colored.green('Done.'))
 
     return text
 
@@ -92,13 +97,7 @@ def create_message(work_items: list, display: bool = False):
 def format_text(title: str, key: str, values: dict) -> str:
     if values is not None and key in values:
         val = '\n'.join(map(lambda x: f'#{x}', values[key]))
-        return f'''### {title}:
-
-{val}
-
----
-
-'''
+        return f'### {title}:\n\n{val}\n\n---\n\n'
     else:
         return ''
 
@@ -109,10 +108,10 @@ def send_request(ids: list):
     response = requests.get(f'{ENDPOINT}/wit/workitems?ids={id_str}&api-version=5.0',
                             auth=AUTHENTICATION)
     if response.ok:
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
         return response.json()['value']
     else:
-        print(f'{colorama.Fore.RED}Failed{colorama.Fore.RESET} [Status code: {response.status_code}]')
+        print(f'{colored.red("Failed")} [Status code: {response.status_code}]')
         pprint.pprint(response.json())
 
         message = response.json()['message']
@@ -135,25 +134,25 @@ def send_request(ids: list):
 
 
 def print_branch(branch_name: str) -> str:
-    return f'[{colorama.Fore.LIGHTBLUE_EX}{branch_name}{colorama.Fore.RESET}]'
+    return f'[{colored.blue(f"{branch_name}", False, True)}]'
 
 
 def finalize(repo: CustomRepository):
     global sourceBranch, targetBranch, sourcePulled, targetPulled
-    print(f'\n\n{colorama.Fore.YELLOW}Script run finished. Cleaning works.{colorama.Fore.RESET}')
+    print(colored.yellow("Script run finished. Cleaning works."))
     if repo is not None:
         repo.reset_index()
         if sourcePulled:
-            print(f'Removing branch {colorama.Fore.LIGHTBLUE_EX}{sourceBranch}{colorama.Fore.RESET} from local: ',
+            print(f'Removing branch {colored.blue(f"{sourceBranch}", False, True)} from local: ',
                   end='')
             repo.repo.git.branch(sourceBranch, '-D')
-            print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+            print(colored.green('Done'))
 
         if targetPulled:
-            print(f'Removing branch {colorama.Fore.LIGHTBLUE_EX}{targetBranch}{colorama.Fore.RESET} from local: ',
+            print(f'Removing branch {colored.blue(f"{targetBranch}", False, True)} from local: ',
                   end='')
             repo.repo.git.branch(targetBranch, '-D')
-            print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+            print(colored.green('Done'))
 
 
 def release(repo: CustomRepository):
@@ -167,10 +166,10 @@ def release(repo: CustomRepository):
     ahead = repo.repo.git.rev_list(f'{sourceBranch}..{targetBranch}', '--count', '--no-merges')
     behind = repo.repo.git.rev_list(f'{targetBranch}..{sourceBranch}', '--count', '--no-merges')
 
-    print(f'Diffs {colorama.Fore.LIGHTBLUE_EX}{sourceBranch}{colorama.Fore.RESET}...'
-          f'{colorama.Fore.LIGHTBLUE_EX}{targetBranch}{colorama.Fore.RESET}')
-    print(f'<Ahead: {colorama.Fore.CYAN}{ahead}{colorama.Fore.RESET}, '
-          f'Behind: {colorama.Fore.CYAN}{behind}{colorama.Fore.RESET}>')
+    print(f'Diffs {colored.blue(sourceBranch, False, True)}...'
+          f'{colored.blue(targetBranch, False, True)}')
+    print(f'<Ahead: {colored.cyan(ahead)}, '
+          f'Behind: {colored.cyan(behind)}>')
 
     print('Looking for git logs in the repo: ', end='')
     logs = repo.repo.git.log(f'{targetBranch}..{sourceBranch}', r'--pretty=%D%s%b', '--no-merges')
@@ -178,7 +177,7 @@ def release(repo: CustomRepository):
 
     print('Treating logs: ', end='')
     str_ids = re.findall(r'#\d{3,4}', logs)
-    ids = sorted(list(map(lambda id: id.replace('#', ''), set(str_ids))))
+    ids = sorted([work_item_id.replace('#', '') for work_item_id in set(str_ids)])
     n = int(len(ids) / 200) + 1
     print(f'{colorama.Fore.GREEN}Done{colorama.Style.RESET_ALL}')
 
@@ -189,9 +188,9 @@ def release(repo: CustomRepository):
 
     message = create_message(work_items)
 
-    _, i = pick(['Create pull request', 'Display message'], 'What should be done: ')
+    _, i = CustomRepository.select(['Create pull request', 'Display message'], 'What should be Done: ')
     if i == 0:
-        wi = list(map(lambda f: f['id'], work_items))
+        wi = [f['id'] for f in work_items]
         create_pull_request(sourceBranch, targetBranch, wi, message)
     elif i == 1:
         print(f'{message}')
@@ -203,7 +202,7 @@ def close_bug(repo: CustomRepository):
     sourceBranch = repo.select_fix_branch()
     print(f'Selected source branch: {sourceBranch}')
 
-    print(f'{colorama.Fore.RED}Not implemented yet{colorama.Fore.RESET}')
+    print(colored.red('not implemented yet'))
 
 
 def print_colorama():
@@ -215,8 +214,8 @@ def print_colorama():
     sys.exit()
 
 
-def remove_escape(input: str) -> str:
-    return re.sub(r'(\x1b\[\d{2}m)', '', input)
+def remove_escape(text: str) -> str:
+    return re.sub(r'(\x1b\[\d{2}m)', '', text)
 
 
 def main():
@@ -233,9 +232,9 @@ def main():
 
     atexit.register(finalize, repository)
 
-    print(f'Repo opened in path: {colorama.Fore.LIGHTBLUE_EX}{cwd}{colorama.Fore.RESET}')
+    print(f'Repo opened in path: {colored.magenta(f"{cwd}", False, True)}')
 
-    _, i = pick(['Create release', 'Close bug'], 'Please select an action')
+    _, i = CustomRepository.select(['Create release', 'Close bug'], 'Please select an action')
     if i == 0:
         release(repository)
     elif i == 1:

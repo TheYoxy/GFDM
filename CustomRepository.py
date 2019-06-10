@@ -3,9 +3,26 @@ import sys
 
 import colorama
 import git
+from PyInquirer import prompt
+from clint.textui import colored
 from pick import pick
 
-from pullrequest import print_branch, GIT_ENDPOINT, remove_escape
+from pullrequest import print_branch, GIT_ENDPOINT
+
+
+def select(choices: list, message: str, **kwargs) -> (object, int):
+    ACTION = 'action'
+    prompt_list = [{'type': 'list',
+                    'name': ACTION,
+                    'message': message,
+                    'choices': choices}]
+
+    default = kwargs.get('default_index', None)
+
+    if default is not None:
+        prompt_list[0]['default'] = default
+    choice = prompt(prompt_list)[ACTION]
+    return choice, choices.index(choice)
 
 
 class CustomRepository:
@@ -17,7 +34,7 @@ class CustomRepository:
         if self.is_stash:
             print(f'Uncommitted files found. Creating stash: ', end='')
             self.stash_push()
-            print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+            print(colored.green('Done'))
 
     @property
     def is_stash(self) -> bool:
@@ -40,51 +57,50 @@ class CustomRepository:
         self.checkout(branch_name)
         print(f'Pushing {print_branch(branch_name)}: ', end='')
         self.repo.git.push(remote, branch_name)
-        print(f'{colorama.Fore.GREEN}Done.{colorama.Fore.RESET}')
+        print(colored.green('Done.'))
 
     def pull_branch(self, remote: str, branch_name: str):
         self.checkout(branch_name)
         print(f'Pulling {print_branch(branch_name)}: ', end='')
         self.repo.git.pull(remote, branch_name)
-        print(f'{colorama.Fore.GREEN}Done.{colorama.Fore.RESET}')
+        print(colored.green('Done.'))
 
     def check_branch(self, branch_name: str) -> bool:
         print(f'Trying to found the branch {print_branch(branch_name)} in local: {colorama.Fore.RESET}', end='')
         remote = self.remote
         if self.local_exist(branch_name):
-            print(f'{colorama.Fore.GREEN}Found{colorama.Fore.RESET}')
+            print(colored.green('Found'))
             print(f'Checking if branch exist in remote {remote}: ', end='')
             if self.remote_exist(branch_name):
-                print(f'{colorama.Fore.GREEN}Found{colorama.Fore.RESET}')
+                print(colored.green('Found'))
                 print(f'Comparing with remote: ', end='')
                 val = self.compare_branch(branch_name, f'{remote}/{branch_name}')
                 if val == 0:
-                    print(f'{colorama.Fore.GREEN}Sync{colorama.Fore.RESET}')
+                    print(colored.green('Sync'))
                 elif val == -1:
-                    print(f'{colorama.Fore.LIGHTBLUE_EX}Behind{colorama.Fore.RESET}')
+                    print(colored.blue("Behind", False, True))
                     self.pull_branch(remote, branch_name)
                 elif val == 1:
-                    print(f'{colorama.Fore.LIGHTBLUE_EX}Ahead{colorama.Fore.RESET}')
+                    print(colored.blue("Ahead", False, True))
                     self.push_branch(remote, branch_name)
                 else:
-                    print(f'{colorama.Fore.RED}Unable to find any link between and local.{colorama.Fore.RESET}')
+                    print(colored.red('Unable to find any link between and local.'))
                     sys.exit(-1)
             else:
-                print(f'{colorama.Fore.RED}Not found{colorama.Fore.RESET}')
+                print(colored.red('Not found'))
                 self.push_branch(remote, branch_name)
         else:
-            print(f'{colorama.Fore.RED}Not found{colorama.Fore.RESET}')
-            print(f'{colorama.Fore.YELLOW}Trying to found the branch {print_branch(branch_name)}'
-                  f'{colorama.Fore.YELLOW} in remotes: {colorama.Fore.RESET}', end='')
+            print(colored.red('Not found'))
+            print(colored.yellow(f"Trying to found the branch {print_branch(branch_name)} in remotes: "), end='')
             if self.remote_exist(branch_name):
-                print(f'{colorama.Fore.GREEN}Found{colorama.Fore.RESET}')
+                print(colored.green('Found'))
                 print('Pulling branch: ', end='')
                 self.repo.git.checkout('-b', branch_name, '--track', f'{remote}/{branch_name}')
-                print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+                print(colored.green('Done'))
                 print()
                 return True
             else:
-                print(f'{colorama.Fore.RED}Not found{colorama.Fore.RESET}')
+                print(colored.red('Not found'))
                 print(f'Stopping the application')
                 sys.exit(-1)
         return False
@@ -92,7 +108,7 @@ class CustomRepository:
     def checkout(self, branch_name: str):
         print(f'Checking out branch -> {print_branch(branch_name)}: ', end='')
         self.repo.git.checkout(branch_name)
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
 
     def clean_branch_name(self, branch_name: str) -> str:
         for origin in self.repo.remotes:
@@ -148,7 +164,7 @@ class CustomRepository:
         if list is None:
             print('Loading list of branch: ', end='')
             branch_list = self.local_branch
-            print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+            print(colored.green('Done'))
 
         source, _ = pick(branch_list, 'Please select base branch: ',
                          default_index=branch_list.index(self.current_branch))
@@ -157,57 +173,52 @@ class CustomRepository:
     def select_fix_branch(self) -> str:
         print('Loading list of branch: ', end='')
         branch_list = [branch for branch in self.local_branch if re.search(r'bugfix/', branch)]
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
         if len(branch_list) == 0:
-            print(f'{colorama.Fore.RED}There is no opened bugfix branches.{colorama.Fore.RESET}')
+            print(colored.red('There is no opened bugfix branches.'))
         elif len(branch_list) == 1:
-            print(f'{colorama.Fore.YELLOW}There is only one bug branch opened. {colorama.Fore.RESET}')
-            input_text = f'Close branch {print_branch(branch_list[0])} [Y/N]: '
-            confirm = input(f'{input_text}{colorama.Fore.LIGHTWHITE_EX}')
-            if not confirm:
-                confirm = 'Y'
-                print(f'{colorama.Cursor.UP(1)}{colorama.Cursor.FORWARD(len(remove_escape(input_text)))}'
-                      f'{confirm}{colorama.Cursor.BACK(len(input_text))}{colorama.Fore.RESET}')
-
-            if confirm.upper() == 'Y':
+            print(colored.yellow('There is only one bug branch opened. '))
+            confirm = prompt({'type': 'confirm', 'name': 'confirm', 'message': f'Close branch {branch_list[0]}'})[
+                'confirm']
+            if confirm:
                 return branch_list[0]
             else:
-                print(f'{colorama.Fore.YELLOW}Stopping application{colorama.Fore.RESET}')
+                print(colored.yellow('Stopping application'))
         else:
             return self.select_branch(branch_list)
 
     def select_src_dest_branch(self) -> (str, str):
         print('Loading list of branch: ', end='')
         branch_list = self.branch
+        print(colored.green('Done'))
 
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
-
-        source, _ = pick(branch_list, 'Please select base branch: ',
-                         default_index=branch_list.index(self.current_branch))
-
+        source, _ = select(branch_list, 'Please select base branch: ',
+                           default_index=self.current_branch)
         branch_list.remove(source)
+
         print(f'Removing newer branch: ', end='')
         branch_list = self.remove_newer_branch(source, branch_list)
-        print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+        print(colored.green('Done'))
 
         source = self.clean_branch_name(source)
         print(f'Source branch selected: {print_branch(source)}')
 
-        target, index = pick(branch_list, 'Please select target branch: ')
+        target, index = select(branch_list, 'Please select target branch: ')
         target = self.clean_branch_name(target)
+
         print(f'Target branch selected: {print_branch(target)}')
         print()
         return source, target
 
-    def reset_index(self):
+    def reset_index(self) -> None:
         self.checkout(self.current_branch)
         if self.is_stash:
             print(f'Getting back uncommitted files. Popping stash: ', end='')
             self.stash_pop()
-            print(f'{colorama.Fore.GREEN}Done{colorama.Fore.RESET}')
+            print(colored.green('Done'))
 
-    def stash_push(self):
+    def stash_push(self) -> None:
         self.repo.git.stash('push', '-u')
 
-    def stash_pop(self):
+    def stash_pop(self) -> None:
         self.repo.git.stash('pop')
