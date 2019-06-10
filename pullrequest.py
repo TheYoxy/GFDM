@@ -34,6 +34,17 @@
 #  furnished to do so, subject to the following conditions:
 #
 #
+#  MIT License
+#
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#
 from __future__ import print_function, unicode_literals
 
 import atexit
@@ -102,9 +113,9 @@ def create_message(work_items: list, display: bool = False):
     for k, v in groupby(sorted(work_items, key=KEY_FUNC), KEY_FUNC):
         if k in ['User Story', 'Bug', 'Task', 'Change request', 'Defect', 'Issue']:
             d[k] = [x['id'] for x in v]
-            print(f'\t{colored.cyan("Nb of {k}: {len(d[k])}")}')
+            print(f'\t{colored.cyan(f"Nb of {k}: {len(d[k])}")}')
         else:
-            print(f'\t{colored.yellow("Unhandled key: {k}")}')
+            print(f'\t{colored.yellow(f"Unhandled key: {k}")}')
 
     print(f'{colorama.Cursor.UP(len(d.keys()) + 1)}{colorama.Cursor.FORWARD(len(msg))}', end='')
     print(colored.green('Done.'))
@@ -243,9 +254,9 @@ def close_bug(repo: custom_repository):
     repo.update_with_remote(sourceBranch)
     work_item_id = re.findall(r'#\d{3,4}', sourceBranch)[0].replace('#', '')
 
-    v = send_request([work_item_id])
-    title = create_title(v[0]['fields']['System.Title'])
-    text = create_message(work_item_id, False)
+    work_item_list = send_request([work_item_id])
+    title = create_title(work_item_list[0]['fields']['System.Title'])
+    text = create_message(work_item_list, False)
 
     targetBranch, _ = select(['Release', 'master'],
                              'For which branch the pull request should be created: ')
