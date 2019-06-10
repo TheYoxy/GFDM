@@ -5,24 +5,9 @@ import colorama
 import git
 from PyInquirer import prompt
 from clint.textui import colored
-from pick import pick
 
+from devops.select import select
 from pullrequest import print_branch, GIT_ENDPOINT
-
-
-def select(choices: list, message: str, **kwargs) -> (object, int):
-    ACTION = 'action'
-    prompt_list = [{'type': 'list',
-                    'name': ACTION,
-                    'message': message,
-                    'choices': choices}]
-
-    default = kwargs.get('default_index', None)
-
-    if default is not None:
-        prompt_list[0]['default'] = default
-    choice = prompt(prompt_list)[ACTION]
-    return choice, choices.index(choice)
 
 
 class CustomRepository:
@@ -35,6 +20,7 @@ class CustomRepository:
             print(f'Uncommitted files found. Creating stash: ', end='')
             self.stash_push()
             print(colored.green('Done'))
+        self._remote = None
 
     @property
     def is_stash(self) -> bool:
@@ -50,16 +36,38 @@ class CustomRepository:
         Get the remote linked to the git endpoint
         :return:
         """
-        return next(filter(lambda remote: re.compile(GIT_ENDPOINT).search(remote[1][0]),
-                           [(r.name, list(r.urls)) for r in self.repo.remotes]))[0]
+        if not self._remote:
+            self._remote = next(filter(lambda remote: re.compile(GIT_ENDPOINT).search(remote[1][0]),
+                                       [(r.name, list(r.urls)) for r in self.repo.remotes]))[0]
+        return self._remote
 
-    def push_branch(self, remote: str, branch_name: str):
+    def update_with_remote(self, branch_name: str) -> None:
+        remote = self.remote
+        print(f'Comparing {print_branch(branch_name)} with remote: ', end='')
+        if self.remote_exist(branch_name):
+            val = self.compare_branch(branch_name, f'{remote}/{branch_name}')
+            if val == 0:
+                print(colored.green('Sync.'))
+            elif val == -1:
+                print(colored.blue("Behind.", False, True))
+                self.pull_branch(remote, branch_name)
+            elif val == 1:
+                print(colored.blue("Ahead.", False, True))
+                self.push_branch(remote, branch_name)
+            else:
+                print(colored.red('Unable to find any link between and local.'))
+                sys.exit(-1)
+        else:
+            print(colored.yellow("Not found."))
+            self.push_branch(remote, branch_name)
+
+    def push_branch(self, remote: str, branch_name: str) -> None:
         self.checkout(branch_name)
         print(f'Pushing {print_branch(branch_name)}: ', end='')
         self.repo.git.push(remote, branch_name)
         print(colored.green('Done.'))
 
-    def pull_branch(self, remote: str, branch_name: str):
+    def pull_branch(self, remote: str, branch_name: str) -> None:
         self.checkout(branch_name)
         print(f'Pulling {print_branch(branch_name)}: ', end='')
         self.repo.git.pull(remote, branch_name)
@@ -73,19 +81,7 @@ class CustomRepository:
             print(f'Checking if branch exist in remote {remote}: ', end='')
             if self.remote_exist(branch_name):
                 print(colored.green('Found'))
-                print(f'Comparing with remote: ', end='')
-                val = self.compare_branch(branch_name, f'{remote}/{branch_name}')
-                if val == 0:
-                    print(colored.green('Sync'))
-                elif val == -1:
-                    print(colored.blue("Behind", False, True))
-                    self.pull_branch(remote, branch_name)
-                elif val == 1:
-                    print(colored.blue("Ahead", False, True))
-                    self.push_branch(remote, branch_name)
-                else:
-                    print(colored.red('Unable to find any link between and local.'))
-                    sys.exit(-1)
+                self.update_with_remote(branch_name)
             else:
                 print(colored.red('Not found'))
                 self.push_branch(remote, branch_name)
@@ -105,7 +101,7 @@ class CustomRepository:
                 sys.exit(-1)
         return False
 
-    def checkout(self, branch_name: str):
+    def checkout(self, branch_name: str) -> None:
         print(f'Checking out branch -> {print_branch(branch_name)}: ', end='')
         self.repo.git.checkout(branch_name)
         print(colored.green('Done'))
@@ -144,7 +140,8 @@ class CustomRepository:
         return branch in self.repo.branches
 
     def remote_exist(self, branch: str) -> bool:
-        return self.repo.heads[branch].tracking_branch() is not None
+        tracking = self.repo.heads[branch].tracking_branch()
+        return tracking is not None and tracking.is_valid()
 
     @property
     def remote_branch(self) -> list:
@@ -166,8 +163,8 @@ class CustomRepository:
             branch_list = self.local_branch
             print(colored.green('Done'))
 
-        source, _ = pick(branch_list, 'Please select base branch: ',
-                         default_index=branch_list.index(self.current_branch))
+        source, _ = select(branch_list, 'Please select base branch: ',
+                           default_index=branch_list.index(self.current_branch))
         return source
 
     def select_fix_branch(self) -> str:

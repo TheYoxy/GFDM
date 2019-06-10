@@ -2,7 +2,7 @@ from .configuration import Configuration
 
 
 class Loader(object):
-    config: Configuration
+    config: Configuration = None
 
     @staticmethod
     def load_configuration(filename: str = 'config.json') -> Configuration:
