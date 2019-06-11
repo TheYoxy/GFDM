@@ -2,6 +2,18 @@
 
 Small cli tool in python to manage flow for a git repository with pull request.
 Currently based on [Azure Devops](https://azure.microsoft.com/en-us/services/devops/?nav=min)
+## Required
+
+`Python 3`
+
+## How to use
+
+```
+git clone https://github.com/TheYoxy/GFDM
+cd GFDM
+pip install -r requirement.txt
+python pullrequest.py "Path to the directory to work on"
+```
 
 ## Built With
 
