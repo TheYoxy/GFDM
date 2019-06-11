@@ -2,10 +2,12 @@
 
 Small cli tool in python to manage flow for a git repository with pull request.
 Currently based on [Azure Devops](https://azure.microsoft.com/en-us/services/devops/?nav=min)
+
 ## Required
 
-`Python 3`
-
+* `Python 3`
+A repository where work items are set inside the commit message.
+> E.G. `#{id of the work item} - Update readme.md`
 ## How to use
 
 ```
