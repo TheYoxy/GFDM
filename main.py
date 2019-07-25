@@ -53,6 +53,7 @@ import pprint
 import re
 import sys
 import webbrowser
+import argparse
 from datetime import date
 from itertools import groupby, islice
 
@@ -275,21 +276,25 @@ def print_colorama():
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path', type=str, help='path to use', default=os.getcwd())
+    parser.add_argument('-r', '--release', action='store_true', help='short way to create a release')
+    args = parser.parse_args()
+    cwd = args.path
+
     colorama.init()
-
-    if len(sys.argv) >= 2:
-        cwd = sys.argv[1]
-    else:
-        cwd = os.getcwd()
-
     os.system('cls' if os.name == 'nt' else 'clear')
 
     repository = custom_repository.CustomRepository(cwd)
     atexit.register(finalize, repository)
 
     print(f'Repo opened in path: {colored.magenta(f"{cwd}", False, True)}')
-
-    _, i = select(['Create release', 'Close bug'], 'Please select an action')
+    
+    if (args.release):
+        i = 0
+    else:
+        _, i = select(['Create release', 'Close bug'], 'Please select an action')
+    
     if i == 0:
         release(repository)
     elif i == 1:
