@@ -6,16 +6,17 @@ Currently based on [Azure Devops](https://azure.microsoft.com/en-us/services/dev
 ## Required
 
 * `Python 3`
-A repository where work items are set inside the commit message.
+* A git repository where work items are set inside the commit message.
+* An azure devops linked to this repository
 > E.G. `#{id of the work item} - Update readme.md`
+
 ## How to use
 
-```
-git clone https://github.com/TheYoxy/GFDM
-cd GFDM
-pip install -r requirement.txt
-python pullrequest.py "Path to the directory to work on"
-```
+1. `git clone https://github.com/TheYoxy/GFDM`
+2. `cd GFDM`
+3. Copy `config.temp.json` to `config.json`
+4. `pip install -r requirement.txt`
+5. `python pullrequest.py "Path to the directory to work on"`
 
 ## Built With
 
@@ -23,11 +24,11 @@ python pullrequest.py "Path to the directory to work on"
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
+Please read [CONTRIBUTING.md]() for details on our code of conduct, and the process for submitting pull requests to us.
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/your/project/tags). 
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](). 
 
 ## Authors
 
@@ -37,4 +38,4 @@ See also the list of [contributors](https://github.com/TheYoxy/GFDM/contributors
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
