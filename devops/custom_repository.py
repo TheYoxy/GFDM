@@ -31,6 +31,17 @@
 #  furnished to do so, subject to the following conditions:
 #
 #
+#  MIT License
+#
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#
 import re
 import sys
 
@@ -40,7 +51,7 @@ from PyInquirer import prompt
 from clint.textui import colored
 
 from devops.select import select
-from main import print_branch, GIT_ENDPOINT
+from main import GIT_ENDPOINT, print_branch
 
 
 class CustomRepository:
@@ -217,27 +228,34 @@ class CustomRepository:
         else:
             return self.select_branch(branch_list)
 
-    def select_src_dest_branch(self) -> (str, str):
-        print('Loading list of branch: ', end='')
-        branch_list = self.branch
-        print(colored.green('Done'))
+    def select_src_dest_branch(self, sourceBranchName: str, targetBranchName: str) -> (str, str):
+        if (sourceBranchName is not None and targetBranchName is not None):
+            source, target = sourceBranchName, targetBranchName
+        else:
+            print('Loading list of branch: ', end='')
+            branch_list = self.branch
+            print(colored.green('Done'))
 
-        source, _ = select(branch_list, 'Please select base branch: ',
-                           default_index=self.current_branch)
-        branch_list.remove(source)
+            if (sourceBranchName is None):
+                source, _ = select(branch_list, 'Please select base branch: ',
+                                   default_index=self.current_branch)
+                branch_list.remove(source)
+            else:
+                source = sourceBranchName
 
-        print(f'Removing newer branch: ', end='')
-        branch_list = self.remove_newer_branch(source, branch_list)
-        print(colored.green('Done'))
+            if (targetBranchName is None):
+                print(f'Removing newer branch: ', end='')
+                branch_list = self.remove_newer_branch(source, branch_list)
+                print(colored.green('Done'))
+                target, index = select(branch_list, 'Please select target branch: ')
+            else:
+                target = targetBranchName
 
         source = self.clean_branch_name(source)
-        print(f'Source branch selected: {print_branch(source)}')
-
-        target, index = select(branch_list, 'Please select target branch: ')
         target = self.clean_branch_name(target)
-
+        print(f'Source branch selected: {print_branch(source)}')
         print(f'Target branch selected: {print_branch(target)}')
-        print()
+        print()            
         return source, target
 
     def reset_index(self) -> None:

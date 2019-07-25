@@ -45,15 +45,26 @@
 #  furnished to do so, subject to the following conditions:
 #
 #
+#  MIT License
+#
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#
 from __future__ import print_function, unicode_literals
 
+import argparse
 import atexit
 import os
 import pprint
 import re
 import sys
 import webbrowser
-import argparse
 from datetime import date
 from itertools import groupby, islice
 
@@ -64,6 +75,7 @@ from clint.textui import colored
 from devops import custom_repository
 from devops.configuration.loader import Loader
 from devops.select import select
+from devops.work_item_types import WorkItemTypes
 
 configuration = Loader.load_configuration('config.json')
 AUTHENTICATION = configuration.authentication.tuple
@@ -76,7 +88,9 @@ REPOSITORY_ID = [x['id'] for x in requests.get(f'{ENDPOINT}/git/repositories?api
                  if x['name'] == PROJECT][0]
 KEY_FUNC = lambda f: f['fields']['System.WorkItemType']
 
+display = False
 sourceBranch = sourcePulled = targetBranch = targetPulled = None
+
 
 def create_title(default_title: str) -> str:
     print('Creating title: ')
@@ -205,9 +219,9 @@ def finalize(repo: custom_repository):
 
 
 def release(repo: custom_repository):
-    global sourceBranch, targetBranch, sourcePulled, targetPulled
+    global sourceBranch, targetBranch, sourcePulled, targetPulled, display
 
-    sourceBranch, targetBranch = repo.select_src_dest_branch()
+    sourceBranch, targetBranch = repo.select_src_dest_branch(sourceBranch, targetBranch)
 
     sourcePulled = repo.check_branch(sourceBranch)
     targetPulled = repo.check_branch(targetBranch)
@@ -235,10 +249,13 @@ def release(repo: custom_repository):
         ids_items = list(islice(ids, i * 200, (i + 1) * 200))
         work_items.extend(send_request(ids_items))
 
-    message = create_message(work_items)
+    if display:
+        i = 1
+    else:
+        _, i = select(['Create pull request', 'Display message'], 'What should be Done: ')
 
-    _, i = select(['Create pull request', 'Display message'], 'What should be Done: ')
     if i == 0:
+        message = create_message(work_items)
         title = create_title(f'Release of {date.today().strftime("%d/%m/%Y")}')
         create_pull_request(sourceBranch, targetBranch, title, [f['id'] for f in work_items], message)
     elif i == 1:
@@ -276,11 +293,18 @@ def print_colorama():
 
 
 def main():
+    global sourceBranch, targetBranch, display
     parser = argparse.ArgumentParser()
-    parser.add_argument('path', type=str, help='path to use', default=os.getcwd())
+    parser.add_argument('-p', '--path', type=str, help='path to use', default=os.getcwd())
     parser.add_argument('-r', '--release', action='store_true', help='short way to create a release')
+    parser.add_argument('-b', '--base', type=str, help='base branch name used for a release')
+    parser.add_argument('-t', '--target', type=str, help='target branch name used in the application')
+    parser.add_argument('-d', '--display', action='store_true', help='Display the message to sned')
     args = parser.parse_args()
     cwd = args.path
+    sourceBranch = args.base
+    targetBranch = args.target
+    display = args.display
 
     colorama.init()
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -289,12 +313,12 @@ def main():
     atexit.register(finalize, repository)
 
     print(f'Repo opened in path: {colored.magenta(f"{cwd}", False, True)}')
-    
-    if (args.release):
+
+    if args.release:
         i = 0
     else:
         _, i = select(['Create release', 'Close bug'], 'Please select an action')
-    
+
     if i == 0:
         release(repository)
     elif i == 1:
@@ -303,4 +327,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
