@@ -56,6 +56,17 @@
 #  furnished to do so, subject to the following conditions:
 #
 #
+#  MIT License
+#
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#
 from __future__ import print_function, unicode_literals
 
 import argparse
@@ -121,16 +132,13 @@ def create_pull_request(source_branch: str, target_branch: str, title: str, work
         print(colored.green('Done'))
 
 
-def create_message(work_items: list):
+def create_message(work_items: list, print_title: bool = False):
     msg = 'Sorting commits: '
     print(msg)
-    d = {}
-    for k, v in groupby(sorted(work_items, key=KEY_FUNC), KEY_FUNC):
-        if k in ['User Story', 'Bug', 'Task', 'Change request', 'Defect', 'Issue']:
-            d[k] = [{x['id']} for x in v]
-            print(f'\t{colored.cyan(f"Nb of {k}: {len(d[k])}")}')
-        else:
-            print(f'\t{colored.yellow(f"Unhandled key: {k}")}')
+
+    d = create_item_dictionnary(work_items)
+    for key, value in d.items():
+        value.sort(key=lambda x: x['id'])
 
     print(f'{colorama.Cursor.UP(len(d.keys()) + 1)}{colorama.Cursor.FORWARD(len(msg))}', end='')
     print(colored.green('Done.'))
@@ -140,15 +148,15 @@ def create_message(work_items: list):
 
     text = '# Release notes:\n'
     text += '## From git:\n'
-    text += format_text('User stories', 'User Story', d)
+    text += format_text('User stories', 'User Story', d, print_title)
     print('.', end='')
-    text += format_text('Tasks', 'Task', d)
+    text += format_text('Tasks', 'Task', d, print_title)
     print('.', end='')
-    text += format_text('Change requests', 'Change request', d)
+    text += format_text('Change requests', 'Change request', d, print_title)
     print('.', end='')
-    text += format_text('Bugs', 'Bug', d)
+    text += format_text('Bugs', 'Bug', d, print_title)
     print('.', end='')
-    text += format_text('Defects', 'Defect', d)
+    text += format_text('Defects', 'Defect', d, print_title)
     print('.', end='')
     text = re.sub(r"\n\n---\n\n$", '', text)
     print('. ', end='')
@@ -157,15 +165,42 @@ def create_message(work_items: list):
     return text
 
 
-def format_text(title: str, key: str, values: dict) -> str:
+def create_item_dictionnary(work_items) -> dict:
+    d = {}
+    types = WorkItemTypes(ENDPOINT, AUTHENTICATION)
+    ids = [y['id'] for y in work_items]
+
+    for k, v in groupby(sorted(work_items, key=KEY_FUNC), KEY_FUNC):
+        items = [x for x in v]
+        if k == 'Task':
+            parent = types.get_parents([x['id'] for x in items])
+            p = [str(x) for x in parent if x not in ids]
+            parent_list = [x for x in send_request(p) if KEY_FUNC(x) == 'User Story']
+            parent_dict = create_item_dictionnary(parent_list)
+            d = {**d, **parent_dict}
+
+        if k in ['User Story', 'Task', 'Bug', 'Change request', 'Defect', 'Issue']:
+            if k in d and type(d[k]) is list:
+                d[k] += items
+            else:
+                d[k] = items
+            print(f'\t{colored.cyan(f"Nb of {k}: {len(d[k])}")}')
+        else:
+            print(f'\t{colored.yellow(f"Unhandled key: {k}")}')
+    return d
+
+
+def format_text(title: str, key: str, values: dict, print_title: bool = False) -> str:
     if values is not None and key in values:
-        val = '\n'.join([f'#{x}' for x in values[key]])
-        return f'### {title}:\n\n{val}\n\n---\n\n'
+        item_id = '\n'.join(
+            [f'#{x["id"]} - {x["fields"]["System.Title"]}' for x in values[key]] if print_title else
+            [f'#{x["id"]}' for x in values[key]])
+        return f'### {title}:\n\n{item_id}\n\n---\n\n'
     else:
         return ''
 
 
-def send_request(ids: list):
+def send_item_request(ids: list):
     id_str = ','.join(ids)
     print(f'Sending request for {len(ids)} work items: ', end='')
     response = requests.get(f'{ENDPOINT}/wit/workitems?ids={id_str}&api-version=5.0',
@@ -177,23 +212,28 @@ def send_request(ids: list):
         print(f'{colored.red("Failed")} [Status code: {response.status_code}]')
         pprint.pprint(response.json())
 
-        message = response.json()['message']
-        if response.status_code == 404 and 'TF401232' in message:
-            print('TF401232: ')
-            pprint.pprint(message)
-            i = re.findall(r'TF401232:.*\s(\d{3,4})', message)[0]
-            print(f'Removing id {i}')
-            if len(i) == 0:
-                print(f'Error message: {message}')
-            ids.remove(i)
-            return send_request(ids)
-        else:
-            print('Unhandled error has occurred in the request:')
+        if response.status_code == 404:
+            message = response.json()['message']
+            if 'TF401232' in message:
+                print('TF401232: ')
+                pprint.pprint(message)
+                i = re.findall(r'TF401232:.*\s(\d{3,4})', message)[0]
+                print(f'Removing id {i}')
+                if len(i) == 0:
+                    print(f'Error message: {message}')
+                ids.remove(i)
+                return send_item_request(ids)
+
+        print('Unhandled error has occurred in the request:')
+        try:
             print(f'Response [Json]: ')
             pprint.pprint(response.json())
-            print('Work items: ')
-            pprint.pprint(id_str.split(","))
-            raise RuntimeError('Unhandled error has occurred in the request')
+        except:
+            pass
+
+        print('Work items: ')
+        pprint.pprint(id_str.split(","))
+        raise RuntimeError('Unhandled error has occurred in the request')
 
 
 def print_branch(branch_name: str) -> str:
@@ -241,13 +281,9 @@ def release(repo: custom_repository):
     print('Treating logs: ', end='')
     str_ids = re.findall(r'#\d{3,4}', logs)
     ids = sorted([work_item_id.replace('#', '') for work_item_id in set(str_ids)])
-    n = int(len(ids) / 200) + 1
     print(f'{colorama.Fore.GREEN}Done{colorama.Style.RESET_ALL}')
 
-    work_items = list()
-    for i in range(n):
-        ids_items = list(islice(ids, i * 200, (i + 1) * 200))
-        work_items.extend(send_request(ids_items))
+    work_items = send_request(ids)
 
     if display:
         i = 1
@@ -259,9 +295,21 @@ def release(repo: custom_repository):
         title = create_title(f'Release of {date.today().strftime("%d/%m/%Y")}')
         create_pull_request(sourceBranch, targetBranch, title, [f['id'] for f in work_items], message)
     elif i == 1:
-        print(f'{message}')
+        message = create_message(work_items, True)
+        print(message)
     else:
         print(f'Please chose an other option.')
+
+
+def send_request(ids) -> list:
+    if len(ids) == 0:
+        return list()
+
+    n = int(len(ids) / 200) + 1
+    work_items = list()
+    for i in range(n):
+        work_items += send_item_request(list(islice(ids, i * 200, (i + 1) * 200)))
+    return work_items
 
 
 def close_bug(repo: custom_repository):
@@ -272,7 +320,7 @@ def close_bug(repo: custom_repository):
     repo.update_with_remote(sourceBranch)
     work_item_id = re.findall(r'#\d{3,4}', sourceBranch)[0].replace('#', '')
 
-    work_item_list = send_request([work_item_id])
+    work_item_list = send_item_request([work_item_id])
     title = create_title(work_item_list[0]['fields']['System.Title'])
     text = create_message(work_item_list)
 
