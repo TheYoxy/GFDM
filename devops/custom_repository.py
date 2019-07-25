@@ -40,7 +40,7 @@ from PyInquirer import prompt
 from clint.textui import colored
 
 from devops.select import select
-from pullrequest import print_branch, GIT_ENDPOINT
+from main import print_branch, GIT_ENDPOINT
 
 
 class CustomRepository:

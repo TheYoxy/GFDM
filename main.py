@@ -106,13 +106,13 @@ def create_pull_request(source_branch: str, target_branch: str, title: str, work
         print(colored.green('Done'))
 
 
-def create_message(work_items: list, display: bool = False):
+def create_message(work_items: list):
     msg = 'Sorting commits: '
     print(msg)
     d = {}
     for k, v in groupby(sorted(work_items, key=KEY_FUNC), KEY_FUNC):
         if k in ['User Story', 'Bug', 'Task', 'Change request', 'Defect', 'Issue']:
-            d[k] = [x['id'] for x in v]
+            d[k] = [{x['id']} for x in v]
             print(f'\t{colored.cyan(f"Nb of {k}: {len(d[k])}")}')
         else:
             print(f'\t{colored.yellow(f"Unhandled key: {k}")}')
@@ -256,7 +256,7 @@ def close_bug(repo: custom_repository):
 
     work_item_list = send_request([work_item_id])
     title = create_title(work_item_list[0]['fields']['System.Title'])
-    text = create_message(work_item_list, False)
+    text = create_message(work_item_list)
 
     targetBranch, _ = select(['Release', 'master'],
                              'For which branch the pull request should be created: ')
@@ -298,3 +298,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
