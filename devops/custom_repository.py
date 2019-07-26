@@ -42,6 +42,17 @@
 #  furnished to do so, subject to the following conditions:
 #
 #
+#  MIT License
+#
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#
 import re
 import sys
 
@@ -51,14 +62,21 @@ from PyInquirer import prompt
 from clint.textui import colored
 
 from devops.select import select
-from main import GIT_ENDPOINT, print_branch
+from main import print_branch
 
 
 class CustomRepository:
-    def __init__(self, folder: str):
+
+    def __init__(self, folder: str, remote_name: str = 'origin'):
+        """
+
+        :param folder: Folder for the repository
+        :param remote_name: Name of the remote
+        """
         self.repo = git.Repo(folder)
         self.current_branch = self.repo.git.rev_parse('--abbrev-ref', 'HEAD')
         print(f'Current branch: {print_branch(self.current_branch)}')
+        self._remote_name = remote_name
         self._is_stash = not not self.repo.git.status('--porcelain')
         if self.is_stash:
             print(f'Uncommitted files found. Creating stash: ', end='')
@@ -80,9 +98,14 @@ class CustomRepository:
         Get the remote linked to the git endpoint
         :return:
         """
-        if not self._remote:
-            self._remote = next(filter(lambda remote: re.compile(GIT_ENDPOINT).search(remote[1][0]),
-                                       [(r.name, list(r.urls)) for r in self.repo.remotes]))[0]
+        if len(self.repo.remotes) > 1:
+            self._remote = self.repo.remote(self._remote_name)
+            if not self._remote:
+                raise EnvironmentError(f"Remote {self._remote_name} not found")
+        elif len(self.repo.remotes) == 1:
+            self._remote = self.repo.remotes[0]
+        else:
+            raise EnvironmentError("No remote associated into the repository")
         return self._remote
 
     def update_with_remote(self, branch_name: str) -> None:
@@ -228,34 +251,34 @@ class CustomRepository:
         else:
             return self.select_branch(branch_list)
 
-    def select_src_dest_branch(self, sourceBranchName: str, targetBranchName: str) -> (str, str):
-        if (sourceBranchName is not None and targetBranchName is not None):
-            source, target = sourceBranchName, targetBranchName
+    def select_src_dest_branch(self, source_branch_name: str, target_branch_name: str) -> (str, str):
+        if source_branch_name is not None and target_branch_name is not None:
+            source, target = source_branch_name, target_branch_name
         else:
             print('Loading list of branch: ', end='')
             branch_list = self.branch
             print(colored.green('Done'))
 
-            if (sourceBranchName is None):
+            if source_branch_name is None:
                 source, _ = select(branch_list, 'Please select base branch: ',
                                    default_index=self.current_branch)
                 branch_list.remove(source)
             else:
-                source = sourceBranchName
+                source = source_branch_name
 
-            if (targetBranchName is None):
+            if target_branch_name is None:
                 print(f'Removing newer branch: ', end='')
                 branch_list = self.remove_newer_branch(source, branch_list)
                 print(colored.green('Done'))
                 target, index = select(branch_list, 'Please select target branch: ')
             else:
-                target = targetBranchName
+                target = target_branch_name
 
         source = self.clean_branch_name(source)
         target = self.clean_branch_name(target)
         print(f'Source branch selected: {print_branch(source)}')
         print(f'Target branch selected: {print_branch(target)}')
-        print()            
+        print()
         return source, target
 
     def reset_index(self) -> None:
