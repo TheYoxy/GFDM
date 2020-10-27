@@ -72,7 +72,7 @@ cffi==1.12.3
 chardet==3.0.4
 clint==0.5.1
 colorama==0.4.1
-cryptography==2.7
+cryptography==3.2
 curses==2.2
 gitdb2==2.0.5
 GitPython==2.1.11
